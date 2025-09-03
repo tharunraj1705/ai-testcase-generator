@@ -1,13 +1,21 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
-from openai import OpenAI
+import requests
 
-# Initialize OpenAI client
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# Load Hugging Face API key
+HF_API_KEY = st.secrets["HF_API_KEY"]
 
-st.set_page_config(page_title="AI Test Case Generator", page_icon="🧪", layout="wide")
-st.title("🧪 AI Test Case & Scenario Generator")
+API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+
+headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+
+def query(payload):
+    response = requests.post(API_URL, headers=headers, json=payload)
+    return response.json()
+
+st.set_page_config(page_title="AI Test Case Generator (Free)", page_icon="🧪", layout="wide")
+st.title("🧪 AI Test Case & Scenario Generator (Free Version)")
 st.write("Paste your requirement or user story, and AI will generate test cases for you.")
 
 requirement = st.text_area("Enter Requirement/User Story:")
@@ -25,23 +33,20 @@ if st.button("Generate Test Cases"):
             Test Case ID | Scenario | Steps | Expected Result | Type
             """
 
-            try:
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=800
-                )
+            result = query({"inputs": prompt})
 
-                output = response.choices[0].message.content.strip()
+            if isinstance(result, dict) and "error" in result:
+                st.error(f"Error: {result['error']}")
+            else:
+                output = result[0]["generated_text"]
 
                 st.subheader("Generated Test Cases")
                 st.write(output)
 
-                # Try converting into CSV
+                # Convert to CSV if possible
                 rows = [x.split(" | ") for x in output.split("\n") if "|" in x]
                 if rows:
                     df = pd.DataFrame(rows, columns=["Test Case ID", "Scenario", "Steps", "Expected Result", "Type"])
-
                     csv = BytesIO()
                     df.to_csv(csv, index=False)
                     st.download_button(
@@ -51,7 +56,4 @@ if st.button("Generate Test Cases"):
                         mime="text/csv",
                     )
                 else:
-                    st.info("AI response did not include a table. Please try again.")
-
-            except Exception as e:
-                st.error(f"Error: {e}")
+                    st.info("AI response was not in table format. Try again.")
