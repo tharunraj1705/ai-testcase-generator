@@ -1,10 +1,10 @@
 import streamlit as st
-import openai
 import pandas as pd
 from io import BytesIO
+from openai import OpenAI
 
-# 🔑 Put your API key here
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+# Initialize OpenAI client
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 st.set_page_config(page_title="AI Test Case Generator", page_icon="🧪", layout="wide")
 st.title("🧪 AI Test Case & Scenario Generator")
@@ -26,7 +26,7 @@ if st.button("Generate Test Cases"):
             """
 
             try:
-                response = openai.ChatCompletion.create(
+                response = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[{"role": "user", "content": prompt}],
                     max_tokens=800
@@ -37,18 +37,21 @@ if st.button("Generate Test Cases"):
                 st.subheader("Generated Test Cases")
                 st.write(output)
 
-                # Save as CSV
-                df = pd.DataFrame([x.split(" | ") for x in output.split("\n") if "|" in x])
-                df.columns = ["Test Case ID", "Scenario", "Steps", "Expected Result", "Type"]
+                # Try converting into CSV
+                rows = [x.split(" | ") for x in output.split("\n") if "|" in x]
+                if rows:
+                    df = pd.DataFrame(rows, columns=["Test Case ID", "Scenario", "Steps", "Expected Result", "Type"])
 
-                csv = BytesIO()
-                df.to_csv(csv, index=False)
-                st.download_button(
-                    label="📥 Download Test Cases as CSV",
-                    data=csv.getvalue(),
-                    file_name="test_cases.csv",
-                    mime="text/csv",
-                )
+                    csv = BytesIO()
+                    df.to_csv(csv, index=False)
+                    st.download_button(
+                        label="📥 Download Test Cases as CSV",
+                        data=csv.getvalue(),
+                        file_name="test_cases.csv",
+                        mime="text/csv",
+                    )
+                else:
+                    st.info("AI response did not include a table. Please try again.")
 
             except Exception as e:
                 st.error(f"Error: {e}")
